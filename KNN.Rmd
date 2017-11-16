@@ -1,0 +1,17 @@
+---
+title: "K-NN"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(caret)
+library(MLmetrics)
+
+```
+
+
+```{r}
+shots<-read.csv("data.csv")
+```
+
