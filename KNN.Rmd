@@ -31,7 +31,7 @@ test<-subset(shots2, is.na(shot_made_flag))
 train<-subset(shots2, !is.na(shot_made_flag))
 ```
 
-#Data Exploration
+##Data Exploration
 
 Before creating our K-NN model, we will explore the dataset, examining potential variables to be included in our distnace measurement. The below graph has broken the basketball court into various regions, and the shot accuracy for each region is indicated by the color. The size of the points corresponds to the volume of shots in a given region.
 
@@ -66,17 +66,21 @@ ggplot(train3, aes(center_x,center_y, color=Accuracy)) + #create plot
 
 
 
-Notice in the above plot that the largest point is by far the one directly underneath the basket. Kobe Bryant made a career out of getting to the basket, and when he got there, he rarely missed. As expected, the points tend to turn blue and dark purple the further from the basket we move. Bryant's efficiency, as expected decreased, in general, as he move towards the three point arc and beyond. Outside the point closest to the hoop, Bryant's high volume regions tend to be on the wings, both in the mid range and at the three point arc. It is clear that both location and distance play a role in the likelihood a shot is made. Having said that, obviously the two variables are not completely independent of one another, so the inclusion of both might be unneccesary and potentially detrimental to the performance of the model.
+Notice in the above plot that the largest point is by far the one directly underneath the basket. Kobe Bryant made a career out of getting to the basket, and when he got there, he rarely missed. As expected, the points tend to turn blue and dark purple the further from the basket we move. Bryant's efficiency, as expected, decreased, as he moved towards the three point arc and beyond. Outside the point closest to the hoop, Bryant's high volume regions tend to be on the wings, both in the mid range and at the three point arc. It is clear that both location and distance play a role in the likelihood a shot is made. Having said that, obviously the two variables are not completely independent of one another, so the inclusion of both may or may not be necessary.
 
 
-Various categorical variables in this dataset are simply imprecise versions of distance. The categorical variable "combined_shot_type" has levels like "Jump Shot", "Dunk", and "Layup"; naturally, jump shots will be further from the basket than layups and dunks. If we know distance, then we likely know shot type as well. Furthermore, creating a distance metric for categorical variables is difficult when the categorical variables are not ordinal. While it is possible to create a numerical value for each categorical variable, doing so would at a degree of variability and subjectivity to the model that is unneccessary. Given that "combined_shot_type" and other categorical variables can be accounted for with distance and the raw x and y coordinates of each shot, we have elected not to create any distane metrics for the categorical variables. 
+Various categorical variables in this dataset are simply imprecise versions of distance. The categorical variable "combined_shot_type" has levels like "Jump Shot", "Dunk", and "Layup"; naturally, jump shots will be further from the basket than layups and dunks. If we know distance, then we likely know shot type as well; Bryant will not be taking layups 30 feet from the basket. Furthermore, creating a distance metric for categorical variables is difficult when the categorical variables are not ordinal. While it is possible to create a numerical value for each categorical variable, doing so would at a degree of variability and subjectivity to the model that is unneccessary. Given that "combined_shot_type" and other categorical variables can be accounted for with distance and the raw x and y coordinates of each shot, we have elected not to create any distance metrics for the categorical variables. 
+
+The code below examines trends in efficiency both by the season in which Bryant played, and whether or not the shot occured in the playoffs.
 
 ```{r}
 by_season<-train2 %>%
   group_by(season) %>%
-  summarise(fg_pct=mean(shot_made_flag), count=n())
+  summarise(fg_pct=mean(shot_made_flag), count=n()) %>%
+  mutate(season=strtrim(season,4))
 
-ggplot(by_season, aes(season, fg_pct)) + geom_bar
+ggplot(by_season, aes(season, fg_pct)) + geom_col() + ggtitle("Accuracy by Season") +
+  xlab("Season") + ylab("FG %")
 
 playoffs<-train2 %>%
   group_by(playoffs) %>%
@@ -86,17 +90,39 @@ colnames(playoffs)<-c("Playoffs", "FG Percentage", "Shots")
 knitr::kable(playoffs)
 ```
 
-Kobe Bryant is certainly known for his playoff performances, as he had led 5 Laker teams to NBA titles. While the sample size in the playoffs is much smaller, 3724 field goal attempts in the playoffs is a sufficiently large sample size; notice there is a negligible difference in Bryant's field goal percentage in the playoffs. It likely does not help us to include this predictor in the K-NN algorithm. In order to reduce the likelihood of ties, we 
+Notice in the graph of Bryant's accuracy by season, there are two peaks, each representing the "double primed" career Bryany enjoyed. It is no coincidence that some of Bryant's best seasons from an accuracy perspective came when he won NBA championships (2000, 2001, 2002, 2008, 2009). While the differences in accuracy may seem small on the graph, there is clearly a season effect here, as a few percentage points amounts to a lot of shots over the course of a given season. Season will prove to be crucial as a measurement of distance for K-NN.
 
-
-Below, we have completed a 10 fold cross validation process for $k=1,5, 10, 15, ..., 150$. 
+Kobe Bryant is certainly known for his playoff performances, as he had led 5 Laker teams to NBA titles. While the sample size in the playoffs is much smaller, 3724 field goal attempts in the playoffs is a sufficiently large sample size; notice there is a negligible difference in Bryant's field goal percentage in the playoffs. It likely does not help us to include this predictor in the K-NN algorithm.
 
 
 ```{r}
+by_period<-train2 %>%
+  group_by(period) %>%
+  summarise(fg_pct=mean(shot_made_flag), count=n())
+
+ggplot(by_period, aes(period, fg_pct)) + geom_col() + ggtitle("Accuracy by Season") +
+  xlab("Season") + ylab("FG %")
+```
+
+
+
+Finally, we settled on the x and y locations of the shots, distance, period, and the season as our predictor variables. In an effort to create more precision and reduce the likelihood of ties, we chose the "lat" and "lon" columns to determine the location of the shot. Season and period are ordinal variables, which allow for us to easily measure distance, making them clear additions to the model.
+
+
+Below, we have completed a 10 fold cross validation process for $k=1,5, 10, 15, ..., 495$ in order to optimize our choice for k. Since Kaggle uses Log-Loss as its measure of model performance, we have done the same in the cross validation process. After initially creating a vector of k-vals, shown below, we realized that with such a large sample size, $k$ would have to be very large in order for the Log-Loss to reach a minimum. We found that the Log-Loss reaches a minimum around $k=495$. Beyond this point, the algorithm stops running, as there are too many ties with a larger k. Furthermore, as we approached $k=495$, the marginal improvements in performance were negligible, indicating that we have reached a miniumum. 
+
+
+```{r}
+
+ LogLossBinary = function(actual, predicted, eps = 1e-15) {
+  predicted = pmin(pmax(predicted, eps), 1-eps)
+  - (sum(actual * log(predicted) + (1 - actual) * log(1 - predicted))) / length(actual)
+} #https://www.r-bloggers.com/making-sense-of-logarithmic-loss/
+
 set.seed(3)
-k_vals=rep(0,30)
+k_vals=rep(0,99)
 k=5
-for (i in 1:30){
+for (i in 1:length(k_vals)){
   k_vals[i]=k
   k=k+5
 }
@@ -115,17 +141,19 @@ for (i in 1:10) {
   psuedo_train=x[ -idx[[i]] , ]
   psuedo_test=x[ idx[[i]], ]
   outcomes<-y[ -idx[[i]] ]
-  pred <- class::knn(train=psuedo_train, test=psuedo_test, cl=outcomes, k=k_vals[j])
-  errors[i]=round(mean(y[ idx[[i]] ] != pred),3)
+  pred <- attr(class::knn(train=psuedo_train, test=psuedo_test, cl=outcomes, k=k_vals[j], prob=TRUE), "prob")
+   errors[i]=LogLossBinary(y[idx[[i]]], pred)
 }
   errors_for_k[j]=mean(errors)
 }
 
 cross<-data.frame(k=k_vals, cv_mse=errors_for_k)
 
-#which.min(cross$cv_mse) 
+ggplot(filter(cross, k>50), aes(k, cv_mse))+geom_point() + ggtitle("Cross Validated Log Loss") +
+  xlab("K") + ylab("Log Loss")
+
 ```
-$k=120$ yielded the lowest cross-validated MSE of .3930. Since we have a binary outcome variables, it is ideal to have an odd value for $k$, so we will use $k=121$ for our K-NN model. 
+Notice how as $k$ increases, the graph begins to level off around $K=495$. The large requirement for $k$ makes sense, given the size of our training set is nearly 26,000 observations. Below, we use $k=495$ to predict shot outcomes on the test set.
 
 ```{r}
 x <- train[, c(5, 8, 10, 12, 14)] %>%
@@ -136,14 +164,19 @@ y <- test[, c(5, 8, 10, 12, 14)] %>%
   mutate(season=strtrim(season, 4)) %>%
   mutate(season=as.numeric(season))
 
-pred <- class::knn(train=x, test=y, cl=outcomes, k=121)
-test$pred=pred
+pred <- class::knn(train=x, test=y, cl=as.factor(outcomes), k=495, prob=TRUE)
+test$pred=attr(pred, "prob")
 ```
 
 ##Submission
 
 ```{r}
 sub<-test[,c(25, 26)]
+colnames(sub)[2]="shot_made_flag"
 write.csv(sub, "Knn_sub.csv", row.names=FALSE)
 ```
+
+
+Our log-loss from Kaggle was 0.74350, which is actually lower than our cross-validated log-loss of 0.74844 with $k=495$. While not stellar compared to Kaggle's top score of 0.56528, K-NN performed rather well in predicting the outcome of Kobe Bryant's shots on an out of sample set.
+
 
