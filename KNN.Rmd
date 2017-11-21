@@ -13,7 +13,9 @@ library(grid)
 library(jpeg)
 library(rjson)
 library(RCurl)
+library(caret)
 library(densityvis)
+library(ggplot2)
 ```
 
 #K-Nearest Neighbors
@@ -21,14 +23,8 @@ library(densityvis)
 
 ```{r, include=FALSE}
 shots<-read.csv("data.csv") #read in data
-shots2<-shots %>% 
-  mutate(shot_made_flag=as.numeric(shot_made_flag), 
-         action_type=as.numeric(action_type), combined_shot_type=as.numeric(combined_shot_type),
-         playoffs=as.numeric(playoffs), shot_type=as.numeric(shot_type),
-         shot_zone_area=as.numeric(shot_zone_area), shot_zone_basic=as.numeric(shot_zone_basic),
-         shot_zone_range=as.numeric(shot_zone_range), period=as.numeric(period)) #turn factors into numerics for knn
-test<-subset(shots2, is.na(shot_made_flag))
-train<-subset(shots2, !is.na(shot_made_flag))
+test<-subset(shots, is.na(shot_made_flag))
+train<-subset(shots, !is.na(shot_made_flag))
 ```
 
 ##Data Exploration
@@ -43,10 +39,11 @@ court <- rasterGrob(readJPEG(getURLContent(courtImg.URL)),
            width=unit(1,"npc"), height=unit(1,"npc"))
 
 train2<-shots
-train2<-subset(train2, center_y<350 & abs(center_x)<250) #ignore backcourt shots. they are outliers
 closest<-hex_pos(train2$loc_x, train2$loc_y, 70,70) #create bins
 train2$center_x=closest[,1] 
 train2$center_y=closest[,2]
+
+train2<-subset(train2, center_y<350 & abs(center_x)<250) #ignore backcourt shots. they are outliers
 
 train3<-train2 %>%
   group_by(center_x, center_y) %>%
@@ -118,6 +115,7 @@ Below, we have completed a 10 fold cross validation process for $k=1,5, 10, 15, 
   predicted = pmin(pmax(predicted, eps), 1-eps)
   - (sum(actual * log(predicted) + (1 - actual) * log(1 - predicted))) / length(actual)
 } #https://www.r-bloggers.com/making-sense-of-logarithmic-loss/
+
 
 set.seed(3)
 k_vals=rep(0,99)
