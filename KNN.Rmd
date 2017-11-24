@@ -38,7 +38,7 @@ courtImg.URL <- "https://thedatagame.files.wordpress.com/2016/03/nba_court.jpg"
 court <- rasterGrob(readJPEG(getURLContent(courtImg.URL)),
            width=unit(1,"npc"), height=unit(1,"npc"))
 
-train2<-shots
+train2<-train
 closest<-hex_pos(train2$loc_x, train2$loc_y, 70,70) #create bins
 train2$center_x=closest[,1] 
 train2$center_y=closest[,2]
@@ -91,16 +91,16 @@ Notice in the graph of Bryant's accuracy by season, there are two peaks, each re
 
 Kobe Bryant is certainly known for his playoff performances, as he had led 5 Laker teams to NBA titles. While the sample size in the playoffs is much smaller, 3724 field goal attempts in the playoffs is a sufficiently large sample size; notice there is a negligible difference in Bryant's field goal percentage in the playoffs. It likely does not help us to include this predictor in the K-NN algorithm.
 
+Notice below there seems to be a slight period effect. Look at the dip Bryant sees in the 4th quarter. The sample size is much too low in the 5th, 6th, and 7th quarters to make much of them, but period might be a variable of interest.
 
 ```{r}
 by_period<-train2 %>%
   group_by(period) %>%
   summarise(fg_pct=mean(shot_made_flag), count=n())
 
-ggplot(by_period, aes(period, fg_pct)) + geom_col() + ggtitle("Accuracy by Season") +
-  xlab("Season") + ylab("FG %")
+ggplot(by_period, aes(period, fg_pct)) + geom_col() + ggtitle("Period Effect?") +
+  xlab("Period") + ylab("FG %")
 ```
-
 
 
 Finally, we settled on the x and y locations of the shots, distance, period, and the season as our predictor variables. In an effort to create more precision and reduce the likelihood of ties, we chose the "lat" and "lon" columns to determine the location of the shot. Season and period are ordinal variables, which allow for us to easily measure distance, making them clear additions to the model.
