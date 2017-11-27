@@ -151,7 +151,9 @@ ggplot(filter(cross, k>50), aes(k, cv_mse))+geom_point() + ggtitle("Cross Valida
   xlab("K") + ylab("Log Loss")
 
 ```
-Notice how as $k$ increases, the graph begins to level off around $K=495$. The large requirement for $k$ makes sense, given the size of our training set is nearly 26,000 observations. Below, we use $k=495$ to predict shot outcomes on the test set.
+
+
+The large requirement for $k$ makes sense, given the size of our training set is nearly 26,000 observations. Below, we use $k=495$ to predict shot outcomes on the test set.
 
 ```{r}
 x <- train[, c(5, 8, 10, 12, 14)] %>%
@@ -175,6 +177,6 @@ write.csv(sub, "Knn_sub.csv", row.names=FALSE)
 ```
 
 
-Our log-loss from Kaggle was 0.74350, which is actually lower than our cross-validated log-loss of 0.74844 with $k=495$. While not stellar compared to Kaggle's top score of 0.56528, K-NN performed rather well in predicting the outcome of Kobe Bryant's shots on an out of sample set.
+Our log-loss from Kaggle was 0.74350, which is actually lower than our cross-validated log-loss of 0.74844 with $k=495$. While not stellar compared to Kaggle's top score of 0.56528, K-NN performed rather well in predicting the outcome of Kobe Bryant's shots on an out-of-sample set.
 
 

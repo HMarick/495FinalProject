@@ -214,7 +214,7 @@ cross&lt;-data.frame(k=k_vals, cv_mse=errors_for_k)
 
 ggplot(filter(cross, k&gt;50), aes(k, cv_mse))+geom_point() + ggtitle(&quot;Cross Validated Log Loss&quot;) +
   xlab(&quot;K&quot;) + ylab(&quot;Log Loss&quot;)</code></pre>
-<p>Notice how as <span class="math inline">\(k\)</span> increases, the graph begins to level off around <span class="math inline">\(K=495\)</span>. The large requirement for <span class="math inline">\(k\)</span> makes sense, given the size of our training set is nearly 26,000 observations. Below, we use <span class="math inline">\(k=495\)</span> to predict shot outcomes on the test set.</p>
+<p>The large requirement for <span class="math inline">\(k\)</span> makes sense, given the size of our training set is nearly 26,000 observations. Below, we use <span class="math inline">\(k=495\)</span> to predict shot outcomes on the test set.</p>
 <pre class="r"><code>x &lt;- train[, c(5, 8, 10, 12, 14)] %&gt;%
   mutate(season=strtrim(season, 4)) %&gt;%
   mutate(season=as.numeric(season))
@@ -231,7 +231,7 @@ test$pred=attr(pred, &quot;prob&quot;)</code></pre>
 <pre class="r"><code>sub&lt;-test[,c(25, 26)]
 colnames(sub)[2]=&quot;shot_made_flag&quot;
 write.csv(sub, &quot;Knn_sub.csv&quot;, row.names=FALSE)</code></pre>
-<p>Our log-loss from Kaggle was 0.74350, which is actually lower than our cross-validated log-loss of 0.74844 with <span class="math inline">\(k=495\)</span>. While not stellar compared to Kaggle’s top score of 0.56528, K-NN performed rather well in predicting the outcome of Kobe Bryant’s shots on an out of sample set.</p>
+<p>Our log-loss from Kaggle was 0.74350, which is actually lower than our cross-validated log-loss of 0.74844 with <span class="math inline">\(k=495\)</span>. While not stellar compared to Kaggle’s top score of 0.56528, K-NN performed rather well in predicting the outcome of Kobe Bryant’s shots on an out-of-sample set.</p>
 </div>
 </div>
 
