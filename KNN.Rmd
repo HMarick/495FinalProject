@@ -178,5 +178,3 @@ write.csv(sub, "Knn_sub.csv", row.names=FALSE)
 
 
 Our log-loss from Kaggle was 0.74350, which is actually lower than our cross-validated log-loss of 0.74844 with $k=495$. While not stellar compared to Kaggle's top score of 0.56528, K-NN performed rather well in predicting the outcome of Kobe Bryant's shots on an out-of-sample set.
-
-
