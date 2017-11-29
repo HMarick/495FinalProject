@@ -112,10 +112,6 @@ train %>%
 # of all of his shots were successful 3PT field goals.
 
 
-# Comparing some totals to stats from 
-# "https://www.basketball-reference.com/players/b/bryanko01.html#all_totals" to make sure 
-# we stay close to what is true
-
 
 
 # Percentage of Shots Made Grouped by `action_type`
@@ -137,11 +133,14 @@ train %>%
   filter(shot_made_flag == "1") %>%
   summarise(count_made = n()/11465) %>%
   arrange(desc(count_made))
-# COMMENT: Of all the shots that Bryant made, 0.45154819 were jump shots, furthermore
-# being the action with the highest percentage, followed by driving layup shots and layup
+# COMMENT: Of all the shots that Bryant made, 0.45154819 were jump shots, proving to
+# be the action with the highest percentage, followed by driving layup shots and layup
 # shots recorded at 0.1053 and 0.0724 respectively.
 
 
+# Comparing some totals to stats from 
+# "https://www.basketball-reference.com/players/b/bryanko01.html#all_totals" to make sure 
+# we stay close to what is true
 ```
 
 
@@ -187,6 +186,8 @@ plot2
 
 
 ### Modeling using LASSO
+
+#### Necessary Functions for Procedure
 ```{r}
 # Wrapper Function
 get_LASSO_coefficients <- function(LASSO_fit){
@@ -200,40 +201,53 @@ get_LASSO_coefficients <- function(LASSO_fit){
   return(coeff_values)
 }
 
-# Define the Model
-model_formula <- as.formula(shot_made_flag ~ action_type + combined_shot_type + game_event_id + game_id + lat + loc_x + loc_y + lon + minutes_remaining + period + playoffs + season + seconds_remaining + shot_distance + shot_type + shot_zone_area + shot_zone_basic + shot_zone_range + game_date + matchup + opponent + shot_id + game_part)
+# Log-Loss function
+ LogLossBinary = function(actual, predicted, eps = 1e-15) {
+  predicted = pmin(pmax(predicted, eps), 1-eps)
+  - (sum(actual * log(predicted) + (1 - actual) * log(1 - predicted))) / length(actual)
+} #https://www.r-bloggers.com/making-sense-of-logarithmic-loss/
+```
 
-# We will not include `team_name` or `team_id` in the model because he spent his entire 
-# career playing for the Los Angeles Lakers and thus this creaters and error when creating
-# the predictor matrix because this is a variable with just one level, so we will 
-# proceed without it, since it also does not contribute to the accuracy of the model.
-# Also, we do not want to include both `period`and `game_part` because they communicate
-# the same information.
+We will use the wrapper function when we look at plots of the coefficients and we will use the Log-Loss function when determing how our model performed on the training set to give us a gauge before we submit our results to kaggle.com.
+
+#### Define the Model
+```{r} 
+model_formula <- as.formula(shot_made_flag ~ action_type + combined_shot_type + game_event_id + game_id + lat + loc_x + loc_y + lon + minutes_remaining + period + playoffs + season + seconds_remaining + shot_distance + shot_type + shot_zone_area + shot_zone_basic + shot_zone_range + game_date + matchup + opponent + shot_id)
+```
+
+The initial model will include all provided variables. However,`team_name` or `team_id` will not be included in the model because he spent his entire career playing for the Los Angeles Lakers. That being said both of these variables only have one level which produces an error when creating the predictor matrix. Additionally, `game_part` was a variable only created for exploratory analysis, so we do not want to include it as it summarizes information from `period` and thus its contribution is redundant. Below we create the predictor matrices for the train and the test set. 
 
 
-# can't do this bc we need it in the data frame test <- test[,-15]
-
-# Predictor Matrix
+#### Predictor Matrices
+```{r}
+# Predictor Matrix for Training Set
 predictor_matrix_train <- model.matrix(model_formula, data = train)[, -15]
-# test predictor matrix does not work because `shot_made_flag` only has one level
-predictor_matrix_test <- model.matrix(model_formula, data = test)
 
+# dummy filler so that we can create the test predictor matrix
+test$shot_made_flag <- rep(c(1,0)) 
+
+# Predictor Matrix for the Test Set
+predictor_matrix_test <- model.matrix(model_formula, data = test)[,-15]
+```
+
+It is important to note that in the test set `shot_made_flag` only had one level because it was a vector of all NA's since this information was not provided and is what we are trying to predict. With that being said we ran into a similar error for the test set's `shot_made_flag` as we did for `team_name` and `team_id`, so we assigned alternating 1's and 0's to this data so that we can run the predictor matrix, but the prector matrix does not include `shot_made_flag`, so ultimately this does not create an issue for the rest of the process.
+
+
+#### First Attempt to Fit Model
+```{r}
 # Define values of tuning/complexity parameter lambda
 lambda_inputs <- 10^seq(-2, 10, length = 100)
+# why do we use this as our lambda imputs?
 
+# Fitting the Model
 LASSO_fit <- glmnet(x=predictor_matrix_train, y=train$shot_made_flag, alpha = 1, 
                     lambda = lambda_inputs, family = "binomial") 
-# what does the family = "binomial" do?
+# why do we have to include family = "binomial" for the model to be fit?
 
 # Get beta-hat coefficients for ALL values of knob/tuning parameter lambda
 LASSO_coefficients <- get_LASSO_coefficients(LASSO_fit)
 
-ggplot(LASSO_coefficients, aes(x=lambda, y=estimate, col=term)) +
-  geom_line() +
-  labs(x="lambda", y="beta-hat coefficient estimate") +
-  theme(legend.position="none")
-# what does this plot mean?
-
+# Coefficient Analysis Plot
 plot_LASSO_coefficients <- LASSO_coefficients %>% 
   filter(term != "(Intercept)") %>% 
   ggplot(aes(x=lambda, y=estimate, col=term)) +
@@ -243,8 +257,16 @@ plot_LASSO_coefficients <- LASSO_coefficients %>%
        title="LASSO regularized coefficient for each lambda value") +
   theme(legend.position="none")
 plot_LASSO_coefficients
+```
 
+We set the values for lambda and proceed to fit the model based on this tuning parameter. In the plot the x-axis is on a log10 scale so that we can more easily see the values of lambda on the x-axis. The plot above illustrates each setting of lambda on the x-axis log10 scale with the beta_hat coefficient estimate on the y-axis. We are most interested with where the beta_hats equal zero. The coefficients which last drop to zero will contribute most to the model. Before we look further into these variables we will use crossvalidation to further improve our model.
+
+#### Fitting the Model with Crossvalidation
+```{r}
+# Model fit with crossvalidation
 LASSO_CV <- cv.glmnet(x=predictor_matrix_train, y=train$shot_made_flag, alpha=1, lambda=lambda_inputs, family = "binomial") # takes a little bit to run
+# crossvalidation to find the optimal value λ_star of λ that yields the β_hat’s for the predictive model that in turn yields the lowest MSE
+
 
 # Optimal lambdas
 lambda_star <- LASSO_CV$lambda.min
@@ -254,16 +276,23 @@ plot(LASSO_CV)
 abline(v=log(lambda_star), col="red")
 abline(v=log(lambda_star_1SE), col="blue")
 
-#the blue line indicates the number of nonzero beta_hats associated with 1SE of the lowest MSE, ~14
+#the blue line indicates the number of nonzero beta_hats associated with 1SE of the lowest MSE, ~21
 
 plot_LASSO_coefficients <- plot_LASSO_coefficients +
   geom_vline(xintercept = lambda_star, col="red", alpha=0.4, linetype="dashed") +
   geom_vline(xintercept = lambda_star_1SE, col="blue", alpha=0.4, linetype="dashed")
 plot_LASSO_coefficients
+```
 
+We use cross validation to obtain the lambda_star for lambda which yield beta_hat's associated with the lowest MSE values. However in an effort to preserve model simplicity we will want to use the beta_hat's associated with MSE values which are at most one standard error away from the minimum MSE. Based on the plot above we can see that all variables contribute to the model so we will use all variables when prediction shot selection in the test set.
 
+#### Score the Model
+```{r}
+# is this kosher?
+
+# Check RMSLE from training data for comparison
 # predicted values from the 5000 observations training set
-log_odds_hat <- predict(LASSO_fit, newx=predictor_matrix_train, s=lambda_star_1SE) %>% 
+log_odds_hat <- predict(LASSO_CV, newx=predictor_matrix_train, s=lambda_star_1SE) %>% 
   as.vector()
 hist(log_odds_hat)
 
@@ -273,24 +302,25 @@ train <- mutate(train, p_hat = p_hat)
 # establish cutoff - 50/50 or AUC
 shot_made_flag_hat <- ifelse(train$p_hat < .5, 0, 1)
 train <- mutate(train, shot_made_flag_hat = shot_made_flag_hat)
-train <- train[,-27]
+
+# Log-loss for predicted on train
+train$shot_made_flag <- as.numeric(train$shot_made_flag)
+train$shot_made_flag <- ifelse(train$shot_made_flag == 1, 0, 1)
+LogLossBinary(train$shot_made_flag, train$p_hat)
 
 
+### Compare Log-Loss for LASSO_fit v Log-Loss for LASSO_CV -- the latter should have 
+# a better score because we have chosen the optimal lambda
+```
 
-# Check RMSLE from training data for comparison
-# RMSLE for predicted on train
-train %>%
-  summarise(RMSLE = mean((as.numeric(shot_made_flag) - 
-                            as.numeric(shot_made_flag_hat))^2))
+Talk about the Log-Loss value/score of the model
 
-# this value should be lower than what kaggle outputs because we are calculating the score
-# based on the data that the model was trained out
-
-
-
-
-
+#### Make Predictions on Test Set
+```{r}
 # predicted values from test
+### test predictor matrix has different dimensions than the train predictor matrix. How
+# do we account for this difference. We can't fit the model to the testing set so what 
+# do we do?
 log_odds_hat <- predict(LASSO_fit, newx=predictor_matrix_test, s=lambda_star_1SE) %>% 
   as.vector()
 hist(log_odds_hat)
@@ -298,13 +328,18 @@ hist(log_odds_hat)
 p_hat <- 1/(1 + exp(-log_odds_hat))
 
 # establish cutoff
-
+shot_made_flag_hat <- ifelse(test$p_hat < .5, 0, 1)
+test <- mutate(test, shot_made_flag_hat = shot_made_flag_hat)
 
 # create submission file
 submission <- test[c(1, 293)]
 write.csv(submission, "submission.csv")
-
 ```
+
+
+
+
+
 
 
 ### Modeling using Logistic Regression
