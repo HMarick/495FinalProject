@@ -1,0 +1,489 @@
+---
+title: "Final Project"
+author: ""
+date: ""
+output: 
+  html_document:
+    fig_height: 3
+    fig_width: 5
+  pdf_document:
+    fig_height: 3
+    fig_width: 5
+  word_document:
+    fig_height: 3
+    fig_width: 5
+---
+
+```{r, setup, include=FALSE}
+require(mosaic)
+library(tidyverse)
+library(glmnet)
+
+# Some customization.  You can alter or delete as desired (if you know what you are doing).
+trellis.par.set(theme=theme.mosaic()) # change default color scheme for lattice
+knitr::opts_chunk$set(
+  tidy=FALSE,     # display code as typed
+  size="small")   # slightly smaller font for code
+```
+
+
+
+### Load and Organization Data
+```{r}
+# read in the data
+kobe_data <- read_csv("data.csv")
+
+set.seed(7)
+# filter out test set from the train set and convert `shot_made_flag` to a factor
+train <- kobe_data %>%
+  filter(!is.na(shot_made_flag)) %>%
+  mutate(shot_made_flag = as.factor(shot_made_flag))
+
+test <- kobe_data %>%
+  anti_join(train, by="shot_id") %>%
+  mutate(shot_made_flag = as.factor(shot_made_flag))
+
+
+# create variable which denotes halves and over time for train and test set
+time <- ifelse(train$period == 1,"first", 
+       ifelse(train$period == 2, "first", 
+              ifelse(train$period == 3, "second", 
+                     ifelse(train$period == 4, "second", "OT"))))
+train <- mutate(train, game_part = time)
+
+time <- ifelse(test$period == 1,"first", 
+       ifelse(test$period == 2, "first", 
+              ifelse(test$period == 3, "second", 
+                     ifelse(test$period == 4, "second", "OT"))))
+test <- mutate(test, game_part = time)
+
+# convert all characters to factors in train and test set
+train <- train %>%
+  mutate(season = as.factor(season),
+         shot_type = as.factor(shot_type),
+         shot_zone_area = as.factor(shot_zone_area),
+         shot_zone_basic = as.factor(shot_zone_basic),
+         shot_zone_range = as.factor(shot_zone_range),
+         team_name = as.factor(team_name),
+         matchup = as.factor(matchup),
+         opponent = as.factor(opponent),
+         game_part = as.factor(game_part))
+
+test <- test %>%
+  mutate(season = as.factor(season),
+         shot_type = as.factor(shot_type),
+         shot_zone_area = as.factor(shot_zone_area),
+         shot_zone_basic = as.factor(shot_zone_basic),
+         shot_zone_range = as.factor(shot_zone_range),
+         team_name = as.factor(team_name),
+         matchup = as.factor(matchup),
+         opponent = as.factor(opponent),
+         game_part = as.factor(game_part))
+
+```
+
+
+### Exploratory Analysis
+
+#### Descriptive Statistics
+```{r}
+# Percentage of Shots Made
+train %>%
+  filter(shot_made_flag == "1") %>%
+  summarise(count_made = n()/25697)
+# COMMENT: 11,465 shots made out of 25,697, thus yielding a 0.446161 field goal percentge
+# for his career based on this data
+
+# Percentage of Shots Missed
+train %>%
+  filter(shot_made_flag == "0") %>%
+  summarise(count_missed = n()/25697)
+# COMMENT: Bryant missed 0.553839 of his shots throughout his career based on this data
+
+
+
+
+# Percentage of Shots Made Grouped by `shot_type`
+train %>%
+  group_by(shot_type) %>%
+  filter(shot_made_flag == "1") %>%
+  summarise(count_made = n()/25697)
+# COMMENT: 0.37681441 of all of his shots were successful 2PT field goals and 0.06934662 
+# of all of his shots were successful 3PT field goals.
+
+
+# Comparing some totals to stats from 
+# "https://www.basketball-reference.com/players/b/bryanko01.html#all_totals" to make sure 
+# we stay close to what is true
+
+
+
+# Percentage of Shots Made Grouped by `action_type`
+train %>%
+  group_by(action_type) %>%
+  filter(shot_made_flag == "1") %>%
+  summarise(count_made = n()/25697) %>%
+  arrange(desc(count_made))
+# COMMENT: of all the shots that he took, 20% of the shots were successful jump shots 
+# i.e. gained points from this shot
+
+train %>%
+  filter(action_type == "Jump Shot") %>%
+  summarise(count_JS = n(), count_PJS = n()/25697)
+# COMMENT: of all the shots he took 15,836 or 0.6162587 were jump shots
+
+train %>%
+  group_by(action_type) %>%
+  filter(shot_made_flag == "1") %>%
+  summarise(count_made = n()/11465) %>%
+  arrange(desc(count_made))
+# COMMENT: Of all the shots that Bryant made, 0.45154819 were jump shots, furthermore
+# being the action with the highest percentage, followed by driving layup shots and layup
+# shots recorded at 0.1053 and 0.0724 respectively.
+
+
+```
+
+
+#### Visualizations
+```{r}
+train %>%
+  filter(loc_y >= 300) %>%
+  group_by(shot_made_flag) %>%
+  summarise(count = n())
+# COMMENT: of the 142 shots he took beyond loc_y = 300 he only made 6, so the shots at
+# this distance are very low percentage
+  
+plot <- ggplot(train, aes(x=loc_x, y=loc_y, col = shot_made_flag)) + geom_point()
+plot
+
+train %>%
+  filter(shot_made_flag == 1, loc_y >=400)
+# COMMENT: this plot illustrated the previous point. The location of his furthest 
+# successful shot was from beyond loc_y = 400, which was scored from 43ft from
+# the basket, i.e. the back court, in a regular 2001-2002 season game in the second period
+# against the Utah Jazz.
+
+viz <- train %>%
+  filter(shot_made_flag == "1")
+
+plot1 <- ggplot(viz, aes(x=loc_x, y=loc_y, col = as.factor(shot_type))) + geom_point()
+plot1
+# why is there a clear space between the 2PT shots and the 3PT shots? 
+# add a three point arch?
+check <- train %>%
+  filter(shot_distance >= 22, shot_distance <= 23.75)
+
+# Shots Made Broken up by First half, Second Half, and Over-Time
+plot2 <- ggplot(train, aes(x=loc_x, y=loc_y, 
+          col = shot_made_flag, shape = shot_made_flag, size = shot_made_flag)) +
+  geom_point() +
+  facet_wrap(~game_part)
+plot2
+# COMMENT: as we can see from the plot, Byrant is fairly consist with the shots that with
+# the shots that he makes, but as the game goes on he becomes more conservative with his
+# shot selection
+```
+
+
+### Modeling using LASSO
+```{r}
+# Wrapper Function
+get_LASSO_coefficients <- function(LASSO_fit){
+  coeff_values <- LASSO_fit %>% 
+    broom::tidy() %>% 
+    as_tibble() %>% 
+    select(-c(step, dev.ratio)) %>% 
+    tidyr::complete(lambda, nesting(term), fill = list(estimate = 0)) %>% 
+    arrange(desc(lambda)) %>% 
+    select(term, estimate, lambda)
+  return(coeff_values)
+}
+
+# Define the Model
+model_formula <- as.formula(shot_made_flag ~ action_type + combined_shot_type + game_event_id + game_id + lat + loc_x + loc_y + lon + minutes_remaining + period + playoffs + season + seconds_remaining + shot_distance + shot_type + shot_zone_area + shot_zone_basic + shot_zone_range + game_date + matchup + opponent + shot_id + game_part)
+
+# We will not include `team_name` or `team_id` in the model because he spent his entire 
+# career playing for the Los Angeles Lakers and thus this creaters and error when creating
+# the predictor matrix because this is a variable with just one level, so we will 
+# proceed without it, since it also does not contribute to the accuracy of the model.
+# Also, we do not want to include both `period`and `game_part` because they communicate
+# the same information.
+
+
+# can't do this bc we need it in the data frame test <- test[,-15]
+
+# Predictor Matrix
+predictor_matrix_train <- model.matrix(model_formula, data = train)[, -15]
+# test predictor matrix does not work because `shot_made_flag` only has one level
+predictor_matrix_test <- model.matrix(model_formula, data = test)
+
+# Define values of tuning/complexity parameter lambda
+lambda_inputs <- 10^seq(-2, 10, length = 100)
+
+LASSO_fit <- glmnet(x=predictor_matrix_train, y=train$shot_made_flag, alpha = 1, 
+                    lambda = lambda_inputs, family = "binomial") 
+# what does the family = "binomial" do?
+
+# Get beta-hat coefficients for ALL values of knob/tuning parameter lambda
+LASSO_coefficients <- get_LASSO_coefficients(LASSO_fit)
+
+ggplot(LASSO_coefficients, aes(x=lambda, y=estimate, col=term)) +
+  geom_line() +
+  labs(x="lambda", y="beta-hat coefficient estimate") +
+  theme(legend.position="none")
+# what does this plot mean?
+
+plot_LASSO_coefficients <- LASSO_coefficients %>% 
+  filter(term != "(Intercept)") %>% 
+  ggplot(aes(x=lambda, y=estimate, col=term)) +
+  geom_line() +
+  scale_x_log10() +
+  labs(x="lambda (log10-scale)", y="beta-hat coefficient estimate",
+       title="LASSO regularized coefficient for each lambda value") +
+  theme(legend.position="none")
+plot_LASSO_coefficients
+
+LASSO_CV <- cv.glmnet(x=predictor_matrix_train, y=train$shot_made_flag, alpha=1, lambda=lambda_inputs, family = "binomial") # takes a little bit to run
+
+# Optimal lambdas
+lambda_star <- LASSO_CV$lambda.min
+lambda_star_1SE <- LASSO_CV$lambda.1se
+
+plot(LASSO_CV)
+abline(v=log(lambda_star), col="red")
+abline(v=log(lambda_star_1SE), col="blue")
+
+#the blue line indicates the number of nonzero beta_hats associated with 1SE of the lowest MSE, ~14
+
+plot_LASSO_coefficients <- plot_LASSO_coefficients +
+  geom_vline(xintercept = lambda_star, col="red", alpha=0.4, linetype="dashed") +
+  geom_vline(xintercept = lambda_star_1SE, col="blue", alpha=0.4, linetype="dashed")
+plot_LASSO_coefficients
+
+
+# predicted values from the 5000 observations training set
+log_odds_hat <- predict(LASSO_fit, newx=predictor_matrix_train, s=lambda_star_1SE) %>% 
+  as.vector()
+hist(log_odds_hat)
+
+p_hat <- 1/(1 + exp(-log_odds_hat))
+train <- mutate(train, p_hat = p_hat)
+
+# establish cutoff - 50/50 or AUC
+shot_made_flag_hat <- ifelse(train$p_hat < .5, 0, 1)
+train <- mutate(train, shot_made_flag_hat = shot_made_flag_hat)
+train <- train[,-27]
+
+
+
+# Check RMSLE from training data for comparison
+# RMSLE for predicted on train
+train %>%
+  summarise(RMSLE = mean((as.numeric(shot_made_flag) - 
+                            as.numeric(shot_made_flag_hat))^2))
+
+# this value should be lower than what kaggle outputs because we are calculating the score
+# based on the data that the model was trained out
+
+
+
+
+
+# predicted values from test
+log_odds_hat <- predict(LASSO_fit, newx=predictor_matrix_test, s=lambda_star_1SE) %>% 
+  as.vector()
+hist(log_odds_hat)
+
+p_hat <- 1/(1 + exp(-log_odds_hat))
+
+# establish cutoff
+
+
+# create submission file
+submission <- test[c(1, 293)]
+write.csv(submission, "submission.csv")
+
+```
+
+
+### Modeling using Logistic Regression
+```{r}
+# load packages
+library(tidyverse)
+library(broom)
+
+# reload clean data
+set.seed(7)
+# filter out test set from the train set and convert `shot_made_flag` to a factor
+train <- kobe_data %>%
+  filter(!is.na(shot_made_flag)) %>%
+  mutate(shot_made_flag = as.factor(shot_made_flag))
+
+test <- kobe_data %>%
+  anti_join(train, by="shot_id") %>%
+  mutate(shot_made_flag = as.factor(shot_made_flag))
+
+
+# create variable which denotes halves and over time for train and test set
+time <- ifelse(train$period == 1,"first", 
+       ifelse(train$period == 2, "first", 
+              ifelse(train$period == 3, "second", 
+                     ifelse(train$period == 4, "second", "OT"))))
+train <- mutate(train, game_part = time)
+
+time <- ifelse(test$period == 1,"first", 
+       ifelse(test$period == 2, "first", 
+              ifelse(test$period == 3, "second", 
+                     ifelse(test$period == 4, "second", "OT"))))
+test <- mutate(test, game_part = time)
+
+# convert all characters to factors in train and test set
+train <- train %>%
+  mutate(season = as.factor(season),
+         shot_type = as.factor(shot_type),
+         shot_zone_area = as.factor(shot_zone_area),
+         shot_zone_basic = as.factor(shot_zone_basic),
+         shot_zone_range = as.factor(shot_zone_range),
+         team_name = as.factor(team_name),
+         matchup = as.factor(matchup),
+         opponent = as.factor(opponent),
+         game_part = as.factor(game_part))
+
+test <- test %>%
+  mutate(season = as.factor(season),
+         shot_type = as.factor(shot_type),
+         shot_zone_area = as.factor(shot_zone_area),
+         shot_zone_basic = as.factor(shot_zone_basic),
+         shot_zone_range = as.factor(shot_zone_range),
+         team_name = as.factor(team_name),
+         matchup = as.factor(matchup),
+         opponent = as.factor(opponent),
+         game_part = as.factor(game_part))
+
+test <- test[,-15]
+```
+
+
+
+```{r}
+# Define the Model
+model_formula <- as.formula(shot_made_flag ~ combined_shot_type + game_event_id + game_id + lat + loc_x + loc_y + lon + minutes_remaining + period + playoffs + season + seconds_remaining + shot_distance + shot_type + shot_zone_area + shot_zone_basic + shot_zone_range + game_date + matchup + opponent + shot_id + game_part)
+
+train <- train[,-1]
+model_logistic <- glm(model_formula, data=train, family="binomial")
+
+# Make predictions on train data to obtain relative score
+# Method 1:
+log_odds_hat <- predict(model_logistic, newdata=train)
+p_hat <- 1/(1 + exp(-log_odds_hat))
+train <- mutate(train, p_hat = p_hat)
+
+# establish cutoff - 50/50 or AUC
+shot_made_flag_hat <- ifelse(train$p_hat < .5, 0, 1)
+train <- mutate(train, shot_made_flag_hat = shot_made_flag_hat)
+train <- train[,-27]
+
+# Check RMSLE from training data for comparison
+# RMSLE for predicted on train
+train %>%
+  summarise(RMSLE = mean((as.numeric(shot_made_flag) - 
+                            as.numeric(shot_made_flag_hat))^2))
+
+# this value should be lower than what kaggle outputs because we are calculating the score
+# based on the data that the model was trained out
+
+# Method 2: All new variables start with a period in the train set
+model_logistic %>% 
+  broom::augment(newdata=train) %>% 
+  as_tibble() %>% 
+  mutate(p_hat = 1/(1 + exp(-.fitted))) %>% 
+  sample_n(5)
+
+fitted_model <- model_logistic %>% 
+  broom::augment() %>% 
+  as_tibble() %>% 
+  mutate(p_hat = 1/(1 + exp(-.fitted)))
+predictions <- model_logistic %>% 
+  broom::augment(newdata=train) %>% 
+  mutate(p_hat = 1/(1 + exp(-.fitted)))
+
+
+profiles_train_augmented <- model_logistic %>% 
+  broom::augment() %>% 
+  as_tibble() %>% 
+  mutate(p_hat = 1/(1+exp(-.fitted)))
+
+library(ROCR)
+# This bit of code computes the ROC curve
+pred <- prediction(predictions = profiles_train_augmented$p_hat, 
+                   labels = profiles_train_augmented$shot_made_flag)
+perf <- performance(pred, "tpr","fpr")
+
+# This bit of code computes the Area Under the Curve
+auc <- as.numeric(performance(pred,"auc")@y.values)
+auc
+
+# This bit of code prints it
+plot(perf, main=paste("Area Under the Curve =", round(auc, 3)))
+abline(c(0, 1), lty=2)
+
+
+
+##########################################################################
+# Make predictions on test data
+# Method 1:
+test <- test[,-1]
+
+log_odds_hat <- predict(model_logistic, newdata=test)
+p_hat <- 1/(1 + exp(-log_odds_hat))
+test <- mutate(test, p_hat = p_hat)
+
+# establish cutoff - 50/50 or AUC
+shot_made_flag_hat <- ifelse(test$p_hat < .5, 0, 1)
+test <- mutate(test, shot_made_flag_hat = shot_made_flag_hat)
+test <- test[,-26]
+
+
+# Method 2: All new variables start with a period in the train set
+model_logistic %>% 
+  broom::augment(newdata=test) %>% 
+  as_tibble() %>% 
+  mutate(p_hat = 1/(1 + exp(-.fitted))) %>% 
+  sample_n(5)
+
+fitted_model <- model_logistic %>% 
+  broom::augment() %>% 
+  as_tibble() %>% 
+  mutate(p_hat = 1/(1 + exp(-.fitted)))
+predictions <- model_logistic %>% 
+  broom::augment(newdata=test) %>% 
+  mutate(p_hat = 1/(1 + exp(-.fitted)))
+
+
+profiles_test_augmented <- model_logistic %>% 
+  broom::augment() %>% 
+  as_tibble() %>% 
+  mutate(p_hat = 1/(1+exp(-.fitted)))
+
+library(ROCR)
+# This bit of code computes the ROC curve
+pred <- prediction(predictions = profiles_test_augmented$p_hat, 
+                   labels = profiles_test_augmented$shot_made_flag)
+perf <- performance(pred, "tpr","fpr")
+
+# This bit of code computes the Area Under the Curve
+auc <- as.numeric(performance(pred,"auc")@y.values)
+auc
+
+# This bit of code prints it
+plot(perf, main=paste("Area Under the Curve =", round(auc, 3)))
+abline(c(0, 1), lty=2)
+```
+
+
+
+
+
+
+
