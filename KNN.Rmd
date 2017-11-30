@@ -109,7 +109,7 @@ Finally, we settled on the x and y locations of the shots, distance, period, and
 Below, we have completed a 10 fold cross-validation process for $k=1,5, 10, 15, ..., 495$ in order to optimize our choice for k. Since Kaggle uses Log-Loss as its measure of model performance, we have done the same in the cross-validation process. After initially creating a vector of k-vals, shown below, we realized that with such a large sample size, $k$ would have to be very large in order for the Log-Loss to reach a minimum. We found that the Log-Loss reaches a minimum around $k=495$. Beyond this point, the algorithm stops running, as there are too many ties with a larger k. Furthermore, as we approached $k=495$, the marginal improvements in performance were negligible, indicating that we have reached a miniumum. 
 
 
-```{r, eval=FALSE}
+```{r, cache=TRUE}
 
  LogLossBinary = function(actual, predicted, eps = 1e-15) {
   predicted = pmin(pmax(predicted, eps), 1-eps)
@@ -120,13 +120,14 @@ Below, we have completed a 10 fold cross-validation process for $k=1,5, 10, 15, 
 set.seed(3)
 k_vals=rep(0,99)
 k=5
+
+train_samp<-sample_n(train, dim(train)[1])
 for (i in 1:length(k_vals)){
   k_vals[i]=k
   k=k+5
 }
-y=train$shot_made_flag
-#x=train[,c(-15, -3, -4, -12, -20, -21, -22, -23, -24, -25)]
-x <- train[, c(5, 8, 10, 12, 14)] %>%
+y=train_samp$shot_made_flag
+x <- train_samp[, c(5, 8, 10, 12)] %>%
   mutate(season=strtrim(season, 4)) %>%
   mutate(season=as.numeric(season))
 
@@ -149,6 +150,7 @@ cross<-data.frame(k=k_vals, cv_mse=errors_for_k)
 
 ggplot(filter(cross, k>50), aes(k, cv_mse))+geom_point() + ggtitle("Cross Validated Log Loss") +
   xlab("K") + ylab("Log Loss")
+
 
 ```
 
