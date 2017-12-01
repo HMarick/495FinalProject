@@ -212,22 +212,32 @@ We will use the wrapper function when we look at plots of the coefficients and w
 
 #### Define the Model
 ```{r} 
-model_formula <- as.formula(shot_made_flag ~ action_type + combined_shot_type + game_event_id + game_id + lat + loc_x + loc_y + lon + minutes_remaining + period + playoffs + season + seconds_remaining + shot_distance + shot_type + shot_zone_area + shot_zone_basic + shot_zone_range + game_date + matchup + opponent + shot_id)
+model_formula <- as.formula(shot_made_flag ~ combined_shot_type + lat + loc_x + loc_y + lon + minutes_remaining + period + playoffs + season + shot_distance + shot_type + matchup + opponent)
+
+
+# work on grouping action_type and see if this makes a difference in the model
+# do we want to include combined_shot_type and/or shot_type? - look at how these 
+# affect the log loss values.
+
+#action_type_to_keep <- c("Jump Shot", "Layup Shot")
+#test <- test %>% 
+ # mutate(action_type = ifelse(action_type %in% action_type_to_keep, action_type, "other"))
+
 ```
 
-The initial model will include all provided variables. However,`team_name` or `team_id` will not be included in the model because he spent his entire career playing for the Los Angeles Lakers. That being said both of these variables only have one level which produces an error when creating the predictor matrix. Additionally, `game_part` was a variable only created for exploratory analysis, so we do not want to include it as it summarizes information from `period` and thus its contribution is redundant. Below we create the predictor matrices for the train and the test set. 
+The initial model will include all provided variables. However,`team_name` or `team_id` will not be included in the model because he spent his entire career playing for the Los Angeles Lakers. That being said both of these variables only have one level which produces an error when creating the predictor matrix. Additionally, `game_part` was a variable only created for exploratory analysis, so we do not want to include it as it summarizes information from `period` and thus its contribution is redundant. Below we create the predictor matrices for the train and the test set. Lastly, because `action_type` is moderately associated with `shot_distance`, we will not include this variable in the model. Did not include `seconds_remaining` because most of that information is captured in `minutes_remaining`. Similarly we did not include `shot_zone_area`, `shot_zone_basic` and `shot_zone_basic` as this information is captured in `shot_distance`.
 
 
 #### Predictor Matrices
 ```{r}
 # Predictor Matrix for Training Set
-predictor_matrix_train <- model.matrix(model_formula, data = train)[, -15]
+predictor_matrix_train <- model.matrix(model_formula, data = train)[, -1]
 
 # dummy filler so that we can create the test predictor matrix
 test$shot_made_flag <- rep(c(1,0)) 
 
 # Predictor Matrix for the Test Set
-predictor_matrix_test <- model.matrix(model_formula, data = test)[,-15]
+predictor_matrix_test <- model.matrix(model_formula, data = test)[,-1]
 ```
 
 It is important to note that in the test set `shot_made_flag` only had one level because it was a vector of all NA's since this information was not provided and is what we are trying to predict. With that being said we ran into a similar error for the test set's `shot_made_flag` as we did for `team_name` and `team_id`, so we assigned alternating 1's and 0's to this data so that we can run the predictor matrix, but the prector matrix does not include `shot_made_flag`, so ultimately this does not create an issue for the rest of the process.
@@ -237,12 +247,11 @@ It is important to note that in the test set `shot_made_flag` only had one level
 ```{r}
 # Define values of tuning/complexity parameter lambda
 lambda_inputs <- 10^seq(-2, 10, length = 100)
-# why do we use this as our lambda imputs?
 
 # Fitting the Model
 LASSO_fit <- glmnet(x=predictor_matrix_train, y=train$shot_made_flag, alpha = 1, 
                     lambda = lambda_inputs, family = "binomial") 
-# why do we have to include family = "binomial" for the model to be fit?
+# use family = "binomial" for logistic regression
 
 # Get beta-hat coefficients for ALL values of knob/tuning parameter lambda
 LASSO_coefficients <- get_LASSO_coefficients(LASSO_fit)
@@ -254,12 +263,11 @@ plot_LASSO_coefficients <- LASSO_coefficients %>%
   geom_line() +
   scale_x_log10() +
   labs(x="lambda (log10-scale)", y="beta-hat coefficient estimate",
-       title="LASSO regularized coefficient for each lambda value") +
-  theme(legend.position="none")
+       title="LASSO regularized coefficient for each lambda value") 
 plot_LASSO_coefficients
 ```
 
-We set the values for lambda and proceed to fit the model based on this tuning parameter. In the plot the x-axis is on a log10 scale so that we can more easily see the values of lambda on the x-axis. The plot above illustrates each setting of lambda on the x-axis log10 scale with the beta_hat coefficient estimate on the y-axis. We are most interested with where the beta_hats equal zero. The coefficients which last drop to zero will contribute most to the model. Before we look further into these variables we will use crossvalidation to further improve our model.
+We set the values for lambda and proceed to fit an initial model based on this tuning parameter. In the plot the x-axis is on a log10 scale so that we can more easily see the values of lambda on the x-axis. The plot above illustrates each setting of lambda on the x-axis log10 scale with the beta_hat coefficient estimate on the y-axis. We are most interested with where the beta_hats equal zero. The coefficients which last drop to zero will contribute most to the model. Before we look further into these variables we will use crossvalidation to further improve our model.
 
 #### Fitting the Model with Crossvalidation
 ```{r}
@@ -276,30 +284,44 @@ plot(LASSO_CV)
 abline(v=log(lambda_star), col="red")
 abline(v=log(lambda_star_1SE), col="blue")
 
-#the blue line indicates the number of nonzero beta_hats associated with 1SE of the lowest MSE, ~21
+# the blue line indicates the number of nonzero beta_hats associated with 1SE of the lowest MSE
+# 4 coefficients
 
 plot_LASSO_coefficients <- plot_LASSO_coefficients +
   geom_vline(xintercept = lambda_star, col="red", alpha=0.4, linetype="dashed") +
   geom_vline(xintercept = lambda_star_1SE, col="blue", alpha=0.4, linetype="dashed")
 plot_LASSO_coefficients
+
+# want to be able to zoom in, but can't see xlim <1
+#plot_LASSO_coefficients +
+  #coord_cartesian(xlim=c(1, 1000), ylim=c(-1, 1))
 ```
 
-We use cross validation to obtain the lambda_star for lambda which yield beta_hat's associated with the lowest MSE values. However in an effort to preserve model simplicity we will want to use the beta_hat's associated with MSE values which are at most one standard error away from the minimum MSE. Based on the plot above we can see that all variables contribute to the model so we will use all variables when prediction shot selection in the test set.
+We use cross validation to obtain the lambda_star for lambda which yield beta_hat's associated with the lowest MSE values. However in an effort to preserve model simplicity we will want to use the beta_hat's associated with MSE values which are at most one standard error away from the minimum MSE. Based on the plot above we can see that all variables contribute to the model so we will use all variables when prediction shot selection in the test set. The variables that contribute most significantly to this model are as follows in order of most informative to least informative:
+*`combined_shot_type Dunk`
+*`combined_shot_type Jump Shot`
+*`shot_distance`
+*`shot_type 3PT Field Goal`
 
 #### Score the Model
 ```{r}
-# is this kosher?
-
-# Check RMSLE from training data for comparison
 # predicted values from the 5000 observations training set
 log_odds_hat <- predict(LASSO_CV, newx=predictor_matrix_train, s=lambda_star_1SE) %>% 
   as.vector()
 hist(log_odds_hat)
 
 p_hat <- 1/(1 + exp(-log_odds_hat))
+hist(p_hat)
+# p_hat's only range from zero to one, so as far as we know we have correctly calculated the probabilities
+
+# sanity check
+plot(p_hat, train$shot_distance)
+# this confirms that our probabilities are on the right track because `shot_distance` and the probability
+# of the shot are negatively assiciated, i.e. as `shot_distance` goes up, `p_hat` goes down.
+
 train <- mutate(train, p_hat = p_hat)
 
-# establish cutoff - 50/50 or AUC
+# establish cutoff - 50/50
 shot_made_flag_hat <- ifelse(train$p_hat < .5, 0, 1)
 train <- mutate(train, shot_made_flag_hat = shot_made_flag_hat)
 
@@ -313,212 +335,35 @@ LogLossBinary(train$shot_made_flag, train$p_hat)
 # a better score because we have chosen the optimal lambda
 ```
 
-Talk about the Log-Loss value/score of the model
+The Log-Loss value for the training set is 0.6546459. We will use this as a point of comparison when we obtain the score from kaggle.com.
 
 #### Make Predictions on Test Set
 ```{r}
 # predicted values from test
-### test predictor matrix has different dimensions than the train predictor matrix. How
-# do we account for this difference. We can't fit the model to the testing set so what 
-# do we do?
-log_odds_hat <- predict(LASSO_fit, newx=predictor_matrix_test, s=lambda_star_1SE) %>% 
+log_odds_hat <- predict(LASSO_CV, newx=predictor_matrix_test, s=lambda_star_1SE) %>% 
   as.vector()
 hist(log_odds_hat)
 
 p_hat <- 1/(1 + exp(-log_odds_hat))
+hist(p_hat)
+# p_hat's only range from zero to one, so as far as we know we have correctly calculated the probabilities
 
-# establish cutoff
-shot_made_flag_hat <- ifelse(test$p_hat < .5, 0, 1)
-test <- mutate(test, shot_made_flag_hat = shot_made_flag_hat)
+# sanity check
+plot(p_hat, test$shot_distance)
+# this confirms that our probabilities are on the right track because `shot_distance` and the probability
+# of the shot are negatively assiciated, i.e. as `shot_distance` goes up, `p_hat` goes down.
 
-# create submission file
-submission <- test[c(1, 293)]
-write.csv(submission, "submission.csv")
-```
-
-
-
-
-
-
-
-### Modeling using Logistic Regression
-```{r}
-# load packages
-library(tidyverse)
-library(broom)
-
-# reload clean data
-set.seed(7)
-# filter out test set from the train set and convert `shot_made_flag` to a factor
-train <- kobe_data %>%
-  filter(!is.na(shot_made_flag)) %>%
-  mutate(shot_made_flag = as.factor(shot_made_flag))
-
-test <- kobe_data %>%
-  anti_join(train, by="shot_id") %>%
-  mutate(shot_made_flag = as.factor(shot_made_flag))
-
-
-# create variable which denotes halves and over time for train and test set
-time <- ifelse(train$period == 1,"first", 
-       ifelse(train$period == 2, "first", 
-              ifelse(train$period == 3, "second", 
-                     ifelse(train$period == 4, "second", "OT"))))
-train <- mutate(train, game_part = time)
-
-time <- ifelse(test$period == 1,"first", 
-       ifelse(test$period == 2, "first", 
-              ifelse(test$period == 3, "second", 
-                     ifelse(test$period == 4, "second", "OT"))))
-test <- mutate(test, game_part = time)
-
-# convert all characters to factors in train and test set
-train <- train %>%
-  mutate(season = as.factor(season),
-         shot_type = as.factor(shot_type),
-         shot_zone_area = as.factor(shot_zone_area),
-         shot_zone_basic = as.factor(shot_zone_basic),
-         shot_zone_range = as.factor(shot_zone_range),
-         team_name = as.factor(team_name),
-         matchup = as.factor(matchup),
-         opponent = as.factor(opponent),
-         game_part = as.factor(game_part))
-
-test <- test %>%
-  mutate(season = as.factor(season),
-         shot_type = as.factor(shot_type),
-         shot_zone_area = as.factor(shot_zone_area),
-         shot_zone_basic = as.factor(shot_zone_basic),
-         shot_zone_range = as.factor(shot_zone_range),
-         team_name = as.factor(team_name),
-         matchup = as.factor(matchup),
-         opponent = as.factor(opponent),
-         game_part = as.factor(game_part))
-
-test <- test[,-15]
-```
-
-
-
-```{r}
-# Define the Model
-model_formula <- as.formula(shot_made_flag ~ combined_shot_type + game_event_id + game_id + lat + loc_x + loc_y + lon + minutes_remaining + period + playoffs + season + seconds_remaining + shot_distance + shot_type + shot_zone_area + shot_zone_basic + shot_zone_range + game_date + matchup + opponent + shot_id + game_part)
-
-train <- train[,-1]
-model_logistic <- glm(model_formula, data=train, family="binomial")
-
-# Make predictions on train data to obtain relative score
-# Method 1:
-log_odds_hat <- predict(model_logistic, newdata=train)
-p_hat <- 1/(1 + exp(-log_odds_hat))
-train <- mutate(train, p_hat = p_hat)
-
-# establish cutoff - 50/50 or AUC
-shot_made_flag_hat <- ifelse(train$p_hat < .5, 0, 1)
-train <- mutate(train, shot_made_flag_hat = shot_made_flag_hat)
-train <- train[,-27]
-
-# Check RMSLE from training data for comparison
-# RMSLE for predicted on train
-train %>%
-  summarise(RMSLE = mean((as.numeric(shot_made_flag) - 
-                            as.numeric(shot_made_flag_hat))^2))
-
-# this value should be lower than what kaggle outputs because we are calculating the score
-# based on the data that the model was trained out
-
-# Method 2: All new variables start with a period in the train set
-model_logistic %>% 
-  broom::augment(newdata=train) %>% 
-  as_tibble() %>% 
-  mutate(p_hat = 1/(1 + exp(-.fitted))) %>% 
-  sample_n(5)
-
-fitted_model <- model_logistic %>% 
-  broom::augment() %>% 
-  as_tibble() %>% 
-  mutate(p_hat = 1/(1 + exp(-.fitted)))
-predictions <- model_logistic %>% 
-  broom::augment(newdata=train) %>% 
-  mutate(p_hat = 1/(1 + exp(-.fitted)))
-
-
-profiles_train_augmented <- model_logistic %>% 
-  broom::augment() %>% 
-  as_tibble() %>% 
-  mutate(p_hat = 1/(1+exp(-.fitted)))
-
-library(ROCR)
-# This bit of code computes the ROC curve
-pred <- prediction(predictions = profiles_train_augmented$p_hat, 
-                   labels = profiles_train_augmented$shot_made_flag)
-perf <- performance(pred, "tpr","fpr")
-
-# This bit of code computes the Area Under the Curve
-auc <- as.numeric(performance(pred,"auc")@y.values)
-auc
-
-# This bit of code prints it
-plot(perf, main=paste("Area Under the Curve =", round(auc, 3)))
-abline(c(0, 1), lty=2)
-
-
-
-##########################################################################
-# Make predictions on test data
-# Method 1:
-test <- test[,-1]
-
-log_odds_hat <- predict(model_logistic, newdata=test)
-p_hat <- 1/(1 + exp(-log_odds_hat))
 test <- mutate(test, p_hat = p_hat)
 
-# establish cutoff - 50/50 or AUC
-shot_made_flag_hat <- ifelse(test$p_hat < .5, 0, 1)
-test <- mutate(test, shot_made_flag_hat = shot_made_flag_hat)
-test <- test[,-26]
+# establish cutoff
+shot_made_flag <- ifelse(test$p_hat < .5, 0, 1)
+test <- mutate(test, shot_made_flag = shot_made_flag)
 
-
-# Method 2: All new variables start with a period in the train set
-model_logistic %>% 
-  broom::augment(newdata=test) %>% 
-  as_tibble() %>% 
-  mutate(p_hat = 1/(1 + exp(-.fitted))) %>% 
-  sample_n(5)
-
-fitted_model <- model_logistic %>% 
-  broom::augment() %>% 
-  as_tibble() %>% 
-  mutate(p_hat = 1/(1 + exp(-.fitted)))
-predictions <- model_logistic %>% 
-  broom::augment(newdata=test) %>% 
-  mutate(p_hat = 1/(1 + exp(-.fitted)))
-
-
-profiles_test_augmented <- model_logistic %>% 
-  broom::augment() %>% 
-  as_tibble() %>% 
-  mutate(p_hat = 1/(1+exp(-.fitted)))
-
-library(ROCR)
-# This bit of code computes the ROC curve
-pred <- prediction(predictions = profiles_test_augmented$p_hat, 
-                   labels = profiles_test_augmented$shot_made_flag)
-perf <- performance(pred, "tpr","fpr")
-
-# This bit of code computes the Area Under the Curve
-auc <- as.numeric(performance(pred,"auc")@y.values)
-auc
-
-# This bit of code prints it
-plot(perf, main=paste("Area Under the Curve =", round(auc, 3)))
-abline(c(0, 1), lty=2)
+# create submission file
+submission <- test[c(25, 15)]
+write.csv(submission, "LASSO_submission.csv")
 ```
 
 
 
-
-
-
-
+Kaggle submission score: 17.35250 - need to work on this   
