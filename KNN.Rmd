@@ -121,13 +121,12 @@ set.seed(3)
 k_vals=rep(0,99)
 k=5
 
-train_samp<-sample_n(train, dim(train)[1])
 for (i in 1:length(k_vals)){
   k_vals[i]=k
   k=k+5
 }
-y=train_samp$shot_made_flag
-x <- train_samp[, c(5, 8, 10, 12)] %>%
+y=train$shot_made_flag
+x <- train[, c(5, 8, 10, 12)] %>%
   mutate(season=strtrim(season, 4)) %>%
   mutate(season=as.numeric(season))
 
@@ -155,7 +154,7 @@ ggplot(filter(cross, k>50), aes(k, cv_mse))+geom_point() + ggtitle("Cross Valida
 ```
 
 
-The large requirement for $k$ makes sense, given the size of our training set is nearly 26,000 observations. Below, we use $k=495$ to predict shot outcomes on the test set.
+The large requirement for $k$ makes sense, given the size of our training set is nearly 26,000 observations. Below, we use $k=$ to predict shot outcomes on the test set.
 
 ```{r}
 x <- train[, c(5, 8, 10, 12, 14)] %>%
@@ -166,7 +165,7 @@ y <- test[, c(5, 8, 10, 12, 14)] %>%
   mutate(season=strtrim(season, 4)) %>%
   mutate(season=as.numeric(season))
 
-pred <- class::knn(train=x, test=y, cl=as.factor(outcomes), k=495, prob=TRUE)
+pred <- class::knn(train=x, test=y, cl=as.factor(outcomes), k=250, prob=TRUE)
 test$pred=attr(pred, "prob")
 ```
 
@@ -179,4 +178,4 @@ write.csv(sub, "Knn_sub.csv", row.names=FALSE)
 ```
 
 
-Our log-loss from Kaggle was 0.74350, which is actually lower than our cross-validated log-loss of 0.74844 with $k=495$. While not stellar compared to Kaggle's top score of 0.56528, K-NN performed rather well in predicting the outcome of Kobe Bryant's shots on an out-of-sample set.
+Our log-loss from Kaggle was 0.74653, which is actually lower than our cross-validated log-loss of 0.74844 with $k=250$. While not stellar compared to Kaggle's top score of 0.56528, K-NN performed rather well in predicting the outcome of Kobe Bryant's shots on an out-of-sample set.
