@@ -213,16 +213,6 @@ We will use the wrapper function when we look at plots of the coefficients and w
 #### Define the Model
 ```{r} 
 model_formula <- as.formula(shot_made_flag ~ combined_shot_type + lat + loc_x + loc_y + lon + minutes_remaining + period + playoffs + season + shot_distance + shot_type + matchup + opponent)
-
-
-# work on grouping action_type and see if this makes a difference in the model
-# do we want to include combined_shot_type and/or shot_type? - look at how these 
-# affect the log loss values.
-
-#action_type_to_keep <- c("Jump Shot", "Layup Shot")
-#test <- test %>% 
- # mutate(action_type = ifelse(action_type %in% action_type_to_keep, action_type, "other"))
-
 ```
 
 The initial model will include all provided variables. However,`team_name` or `team_id` will not be included in the model because he spent his entire career playing for the Los Angeles Lakers. That being said both of these variables only have one level which produces an error when creating the predictor matrix. Additionally, `game_part` was a variable only created for exploratory analysis, so we do not want to include it as it summarizes information from `period` and thus its contribution is redundant. Below we create the predictor matrices for the train and the test set. Lastly, because `action_type` is moderately associated with `shot_distance`, we will not include this variable in the model. Did not include `seconds_remaining` because most of that information is captured in `minutes_remaining`. Similarly we did not include `shot_zone_area`, `shot_zone_basic` and `shot_zone_basic` as this information is captured in `shot_distance`.
