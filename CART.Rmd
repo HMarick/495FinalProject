@@ -73,7 +73,7 @@ histogram(shot_made_flag ~ shot_distance, data=train)
 histogram(shot_made_flag ~ minutes_remaining, data=train)
 
 Plotgg <- ggplot(train, aes(x=shot_distance, y=shot_made_flag)) + geom_point()
-Plot
+Plotgg
 
 bwplot <- bwplot(shot_made_flag ~ shot_distance, data=train)
 bwplot
@@ -245,7 +245,7 @@ ThreePTFGpcttrain ### 32.5% 3PT FG%
 Visualizing Accuracy (From Papiu)
 ```{r}
 ###Overall 
-prop.table(table(train$action_type, train$shot_made_flag),1) -> temp
+prop.table(table(train$combined_shot_type, train$shot_made_flag),1) -> temp
 as.data.frame.matrix(temp) -> temp
 temp$shot <- rownames(temp)
 ggplot(temp, aes(x = reorder(shot, `1`), y = 1)) +
@@ -340,11 +340,6 @@ y_hat <- model1CART %>%
 
 test$p_hat=y_hat
 
-# Score/error
-#MLmetrics::Accuracy(y_true = test$shot_made_flag, y_pred = y_hat)
-#MLmetrics::ConfusionMatrix(y_true = test$shot_made_flag, y_pred = y_hat)
-
-##let's get a scoreee woo
 ```
 
 Submission
