@@ -22,9 +22,9 @@ library(ggplot2)
 
 
 ```{r, include=FALSE}
-shots<-read.csv("data.csv") #read in data
-test<-subset(shots, is.na(shot_made_flag))
-train<-subset(shots, !is.na(shot_made_flag))
+shots <-read.csv("data.csv") #read in data
+test <-subset(shots, is.na(shot_made_flag))
+train <-subset(shots, !is.na(shot_made_flag))
 ```
 
 ##Data Exploration

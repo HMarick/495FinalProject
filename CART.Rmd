@@ -1,0 +1,358 @@
+---
+title: "CART"
+author: "Christien Wright"
+date: "12/2/2017"
+output: html_document
+---
+
+### Layout/Goals
+
+### Load Packages
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(rpart)
+library(tidyverse)
+library(mosaic)
+library(ggplot2)
+data<-read.csv("data.csv")
+head(data)
+```
+
+```{r}
+###Data Stuff
+
+Data <-read.csv("data.csv") 
+
+test <- subset(Data, is.na(shot_made_flag)) #Test Set, with NAs
+train <- subset(Data, !is.na(shot_made_flag)) #Training Set
+
+##Overall Makes and Misses (Train)
+
+trainmade <- filter(train, shot_made_flag==1) #makes
+trainmiss <- filter(train, shot_made_flag==0) #misses
+
+###Regular Season vs Playoffs
+
+### Regular Season
+
+trainreg <- filter(train, playoffs==0)
+trainregmade <- filter(trainreg, shot_made_flag==1)
+trainregmiss <- filter(trainreg, shot_made_flag==0)
+
+### Playoffs
+
+trainplay <- filter(train, playoffs==1)
+trainplaymade <- filter(trainplay, shot_made_flag==1)
+trainplaymiss <- filter(trainplay, shot_made_flag==1)
+```
+
+```{r}
+### Test Set 
+### Regular Season
+
+testreg <- filter(test, playoffs==0)
+
+### Playoffs
+
+testplay <- filter(test, playoffs==1)
+
+```
+
+
+Data Exploration
+
+Quick Look at Shot Distributions
+
+```{r}
+### Overall Shot distribution via histograms
+
+histogram(shot_made_flag ~ period, data=train)
+
+histogram(shot_made_flag ~ shot_distance, data=train)
+
+histogram(shot_made_flag ~ minutes_remaining, data=train)
+
+Plotgg <- ggplot(train, aes(x=shot_distance, y=shot_made_flag)) + geom_point()
+Plot
+
+bwplot <- bwplot(shot_made_flag ~ shot_distance, data=train)
+bwplot
+
+
+### Overall Distribution of Makes
+
+histogram(shot_made_flag ~ period, data=trainmade)
+
+histogram(shot_made_flag ~ shot_distance, data=trainmade)
+
+histogram(shot_made_flag ~ minutes_remaining, data=trainmade)
+
+bwplot <- bwplot(shot_made_flag ~ shot_distance, data=trainmade)
+bwplot
+
+### Overall Distribution of misses
+
+histogram(shot_made_flag ~ period, data=trainmiss)
+
+histogram(shot_made_flag ~ shot_distance, data=trainmiss)
+
+histogram(shot_made_flag ~ minutes_remaining, data=trainmiss)
+```
+
+Regular Season
+
+```{r}
+### Overall Regualar Season 
+
+histogram(shot_made_flag ~ period, data=trainreg)
+
+histogram(shot_made_flag ~ shot_distance, data=trainreg)
+
+histogram(shot_made_flag ~ minutes_remaining, data=trainreg)
+
+###Regular Season Makes
+
+histogram(shot_made_flag ~ period, data=trainregmade)
+
+histogram(shot_made_flag ~ shot_distance, data=trainregmade)
+
+histogram(shot_made_flag ~ minutes_remaining, data=trainregmade)
+
+###Regular Season Misses
+
+histogram(shot_made_flag ~ period, data=trainregmiss)
+
+histogram(shot_made_flag ~ shot_distance, data=trainregmiss)
+
+histogram(shot_made_flag ~ minutes_remaining, data=trainregmiss)
+```
+
+Playoffs
+
+```{r}
+###Overall Playoff Shots
+
+histogram(shot_made_flag ~ period, data=trainplay)
+
+histogram(shot_made_flag ~ shot_distance, data=trainplay)
+
+histogram(shot_made_flag ~ minutes_remaining, data=trainplay)
+
+###Playoff Makes
+
+histogram(shot_made_flag ~ period, data=trainplaymade)
+
+histogram(shot_made_flag ~ shot_distance, data=trainplaymade)
+
+histogram(shot_made_flag ~ minutes_remaining, data=trainplaymade)
+
+### Playoff Misses
+
+histogram(shot_made_flag ~ period, data=trainplaymiss)
+
+histogram(shot_made_flag ~ shot_distance, data=trainplaymiss)
+
+histogram(shot_made_flag ~ minutes_remaining, data=trainplaymiss)
+```
+
+
+Field Goal Percentages from The Training Set
+
+```{r}
+### Field Goal Percentages
+### Overall Percentage
+SumMadeShots <- sum(trainmade$shot_made_flag)
+SumMissShots <- 14232          #### Number of Entries from trainmiss
+FGpcttrain <- SumMadeShots/(SumMadeShots+SumMissShots)
+FGpcttrain ### 44.62% FG %
+```
+
+Regular Season
+
+```{r}
+###Two Point Field Goals 
+
+TwoPTFGtrain <- filter(trainreg, shot_type == "2PT Field Goal")
+
+TwoPTFGtrainmake<- filter(TwoPTFGtrain, shot_made_flag == 1)
+
+TwoPTFGtrainmiss <- filter(TwoPTFGtrain, shot_made_flag == 0)
+
+SumMadeTwoPTFG <- sum(TwoPTFGtrainmake$shot_made_flag)
+
+SumMissTwoPTFG <- 9015 ## Entries
+
+TwoPTFGpcttrain <- SumMadeTwoPTFG/(SumMissTwoPTFG+SumMissTwoPTFG)
+
+TwoPTFGpcttrain ### 45.77% 2PT FG %
+
+###Three Point Field Goals
+
+ThreePTFGtrain <-  filter(trainreg, shot_type == "3PT Field Goal")
+
+ThreePTFGtrainmakes <- filter(ThreePTFGtrain, shot_made_flag == 1)
+
+ThreePTFGtrainmiss <- filter(ThreePTFGtrain, shot_made_flag == 0)
+
+ThreePTFGtrainmiss
+
+
+SumMadeThreePTFG <- sum(ThreePTFGtrainmakes$shot_made_flag)
+
+SumMissThreePTFG <- 3130 ## Entries
+
+ThreePTFGpcttrain <- SumMadeThreePTFG/(SumMadeThreePTFG+SumMissThreePTFG)
+
+ThreePTFGpcttrain   ##32.9%
+```
+
+Playoffs
+
+```{r}
+### Two Point Field Goals
+
+TwoPTFGtrainplay <- filter(trainplay, shot_type == "2PT Field Goal")
+
+TwoPTFGtrainmakeplay <- filter(TwoPTFGtrainplay, shot_made_flag == 1)
+
+TwoPTFGtrainmissplay <- filter(TwoPTFGtrainplay, shot_made_flag == 0)
+
+SumMadeTwoPTFGplay <- sum(TwoPTFGtrainmakeplay$shot_made_flag)
+
+SumMissTwoPTFGplay <- 1587 ## Entries
+
+TwoPTFGpcttrainplay <- SumMadeTwoPTFGplay/(SumMissTwoPTFGplay+SumMissTwoPTFGplay)
+
+TwoPTFGpcttrain ### 45.77% 2PT FG %
+
+###Three Point Field Goals
+
+ThreePTFGtrainplay <-  filter(trainplay, shot_type == "3PT Field Goal")
+
+ThreePTFGtrainmakesplay <- filter(ThreePTFGtrainplay, shot_made_flag == 1)
+
+ThreePTFGtrainmissplay <- filter(ThreePTFGtrainplay, shot_made_flag == 0)
+
+SumMadeThreePTFGplay <- sum(ThreePTFGtrainmakesplay$shot_made_flag)
+
+SumMissThreePTFGplay <- 500  ## Entries
+
+ThreePTFGpcttrain <- SumMadeThreePTFGplay/(SumMadeThreePTFGplay+SumMissThreePTFGplay)
+
+ThreePTFGpcttrain ### 32.5% 3PT FG%
+```
+
+Visualizing Accuracy (From Papiu)
+```{r}
+###Overall 
+prop.table(table(train$action_type, train$shot_made_flag),1) -> temp
+as.data.frame.matrix(temp) -> temp
+temp$shot <- rownames(temp)
+ggplot(temp, aes(x = reorder(shot, `1`), y = 1)) +
+geom_point(aes(y = `1`), size = 3, color = " dark blue", stat = "identity") +
+    coord_flip() +
+    labs(y = "Accuracy", x = "", title = "Accuracy by Shot_type")
+```
+
+```{r}
+###Regular Season
+prop.table(table(trainreg$action_type, trainreg$shot_made_flag),1) -> temp
+as.data.frame.matrix(temp) -> temp
+temp$shot <- rownames(temp)
+ggplot(temp, aes(x = reorder(shot, `1`), y = 1)) +
+geom_point(aes(y = `1`), size = 3, color = " dark blue", stat = "identity") +
+    coord_flip() +
+    labs(y = "Accuracy", x = "", title = "Accuracy by Shot_type")
+```
+```{r}
+###Playoffs 
+prop.table(table(trainplay$action_type, trainplay$shot_made_flag),1) -> temp
+as.data.frame.matrix(temp) -> temp
+temp$shot <- rownames(temp)
+ggplot(temp, aes(x = reorder(shot, `1`), y = 1)) +
+geom_point(aes(y = `1`), size = 3, color = " dark blue", stat = "identity") +
+    coord_flip() +
+    labs(y = "Accuracy", x = "", title = "Accuracy by Shot_type")
+```
+
+CART - Regular Season vs Playoffs (and Overall)
+
+```{r}
+train <- train %>%
+  mutate(season = as.factor(season),
+         shot_type = as.factor(shot_type),
+         shot_zone_area = as.factor(shot_zone_area),
+         shot_zone_basic = as.factor(shot_zone_basic),
+         shot_zone_range = as.factor(shot_zone_range),
+         team_name = as.factor(team_name),
+         matchup = as.factor(matchup),
+         opponent = as.factor(opponent))
+        
+
+test <- test %>%
+  mutate(season = as.factor(season),
+         shot_type = as.factor(shot_type),
+         shot_zone_area = as.factor(shot_zone_area),
+         shot_zone_basic = as.factor(shot_zone_basic),
+         shot_zone_range = as.factor(shot_zone_range),
+         team_name = as.factor(team_name),
+         matchup = as.factor(matchup),
+         opponent = as.factor(opponent))
+```
+
+```{r} 
+##Season, Period, Shot_Type
+### Potential Regular Season Models
+regular1 <- as.formula(shot_made_flag ~ combined_shot_type)
+regular2 <- as.formula(shot_made_flag ~ shot_type)
+
+
+### Potential Playoff Models
+###playoff1 <- as.formula(shot_made_flag ~ shot_distance + combined_shot_type + period)
+
+### Potential Overall Models
+
+### Potential Regular Season CARTS
+treeparameters <- rpart.control(maxdepth = 30)
+model1CART <- rpart(regular1, control=treeparameters, data = trainreg)
+model1CART
+
+### Potential Playoff CARTS
+
+### Potential Overall CARTS
+
+# Plotting probabilities and visualizing models
+plot(model1CART, margin=0.50)
+text(model1CART, use.n = TRUE)
+title("Shots")
+box()
+```
+
+Calculating Score
+```{r}
+
+##LogLossBinary = function(actual, predicted, eps = 1e-15) {
+## predicted = pmin(pmax(predicted, eps), 1-eps)
+##  - (sum(actual * log(predicted) + (1 - actual) * log(1 - predicted))) / length(actual)} 
+
+y_hat <- model1CART %>% 
+  predict(newdata=test, type="vector")
+
+test$p_hat=y_hat
+
+# Score/error
+#MLmetrics::Accuracy(y_true = test$shot_made_flag, y_pred = y_hat)
+#MLmetrics::ConfusionMatrix(y_true = test$shot_made_flag, y_pred = y_hat)
+
+##let's get a scoreee woo
+```
+
+Submission
+
+```{r}
+### 0.65476
+submission<-test[,c(25,26)]
+colnames(sub)[2]="shot_made_flag"
+write.csv(submission, "CART_sub.csv", row.names=FALSE)
+```
+
