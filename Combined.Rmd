@@ -295,10 +295,11 @@ LASSO_coefficients <- get_LASSO_coefficients(LASSO_fit)
 
 # Coefficient Analysis Plot
 plot_LASSO_coefficients <- LASSO_coefficients %>% 
+  mutate(lambda=exp(lambda)) %>%
   filter(term != "(Intercept)") %>% 
   ggplot(aes(x=lambda, y=estimate, col=term)) +
   geom_line() +
-  scale_x_log10() +
+  #scale_x_log10() +
   labs(x="lambda (log10-scale)", y="beta-hat coefficient estimate",
        title="LASSO regularized coefficient for each lambda value") 
 
@@ -316,18 +317,16 @@ LASSO_CV <- cv.glmnet(x=predictor_matrix_train, y=train$shot_made_flag, alpha=1,
 lambda_star <- LASSO_CV$lambda.min
 lambda_star_1SE <- LASSO_CV$lambda.1se
 
-plot(LASSO_CV)
-abline(v=log(lambda_star), col="red")
-abline(v=log(lambda_star_1SE), col="blue")
-
-# the blue line indicates the number of nonzero beta_hats associated with 1SE of the lowest MSE
-# 4 coefficients
-
-plot_LASSO_coefficients <- plot_LASSO_coefficients +
+plot_LASSO_coefficients2 <- plot_LASSO_coefficients +
+  #coord_cartesian(xlim=c(,), ylim=c(-.3, .3)) +
   geom_vline(xintercept = lambda_star, col="red", alpha=0.4, linetype="dashed") +
   geom_vline(xintercept = lambda_star_1SE, col="blue", alpha=0.4, linetype="dashed")
+<<<<<<< HEAD
 plot_LASSO_coefficients +
   coord_cartesian(ylim=c(-0.5, 0.5))
+=======
+plot_LASSO_coefficients2
+>>>>>>> f8073e80d8cd7e9202ad0be7b17bf708ca092a63
 
 ```
 
