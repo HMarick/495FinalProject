@@ -236,7 +236,9 @@ It is important to note that in the test set `shot_made_flag` only had one level
 #### First Attempt to Fit Model
 ```{r}
 # Define values of tuning/complexity parameter lambda
-lambda_inputs <- 10^seq(-2, 10, length = 100)
+lambda_inputs <- 10^seq(-2, 0, length = 100)
+# range of lambda values, we go from 10^-2 and 10^0 now insteand of an upper bound of
+# 10^10
 
 # Fitting the Model
 LASSO_fit <- glmnet(x=predictor_matrix_train, y=train$shot_made_flag, alpha = 1, 
@@ -254,7 +256,7 @@ plot_LASSO_coefficients <- LASSO_coefficients %>%
   scale_x_log10() +
   labs(x="lambda (log10-scale)", y="beta-hat coefficient estimate",
        title="LASSO regularized coefficient for each lambda value") 
-plot_LASSO_coefficients
+
 ```
 
 We set the values for lambda and proceed to fit an initial model based on this tuning parameter. In the plot the x-axis is on a log10 scale so that we can more easily see the values of lambda on the x-axis. The plot above illustrates each setting of lambda on the x-axis log10 scale with the beta_hat coefficient estimate on the y-axis. We are most interested with where the beta_hats equal zero. The coefficients which last drop to zero will contribute most to the model. Before we look further into these variables we will use crossvalidation to further improve our model.
@@ -283,8 +285,8 @@ plot_LASSO_coefficients <- plot_LASSO_coefficients +
 plot_LASSO_coefficients
 
 # want to be able to zoom in, but can't see xlim <1
-#plot_LASSO_coefficients +
-  #coord_cartesian(xlim=c(1, 1000), ylim=c(-1, 1))
+plot_LASSO_coefficients +
+  coord_cartesian(ylim=c(-0.5, 0.5))
 ```
 
 We use cross validation to obtain the lambda_star for lambda which yield beta_hat's associated with the lowest MSE values. However in an effort to preserve model simplicity we will want to use the beta_hat's associated with MSE values which are at most one standard error away from the minimum MSE. Based on the plot above we can see that all variables contribute to the model so we will use all variables when prediction shot selection in the test set. The variables that contribute most significantly to this model are as follows in order of most informative to least informative:

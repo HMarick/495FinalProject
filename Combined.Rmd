@@ -282,7 +282,8 @@ It is important to note that in the test set `shot_made_flag` only had one level
 #### First Attempt to Fit Model
 ```{r}
 # Define values of tuning/complexity parameter lambda
-lambda_inputs <- 10^seq(-2, 10, length = 100)
+lambda_inputs <- 10^seq(-2, 0, length = 100)
+# lambda inputs range from 10^-2 to 10^0
 
 # Fitting the Model
 LASSO_fit <- glmnet(x=predictor_matrix_train, y=train$shot_made_flag, alpha = 1, 
@@ -300,7 +301,7 @@ plot_LASSO_coefficients <- LASSO_coefficients %>%
   scale_x_log10() +
   labs(x="lambda (log10-scale)", y="beta-hat coefficient estimate",
        title="LASSO regularized coefficient for each lambda value") 
-plot_LASSO_coefficients
+
 ```
 
 We set the values for lambda and fit an initial model based on this tuning parameter. In the plot above, the x-axis is on a log10 scale so that we can more easily see the values of lambda on the x-axis. The plot illustrates each setting of lambda on the x-axis log10 scale with the beta_hat coefficient estimate on the y-axis. We are most interested with where the beta_hats equal zero. The coefficients which last drop to zero will contribute most to the model. Before we look further into our ideal predictors we will use cross-validation to further improve our model.
@@ -325,13 +326,14 @@ abline(v=log(lambda_star_1SE), col="blue")
 plot_LASSO_coefficients <- plot_LASSO_coefficients +
   geom_vline(xintercept = lambda_star, col="red", alpha=0.4, linetype="dashed") +
   geom_vline(xintercept = lambda_star_1SE, col="blue", alpha=0.4, linetype="dashed")
-plot_LASSO_coefficients
+plot_LASSO_coefficients +
+  coord_cartesian(ylim=c(-0.5, 0.5))
 
 ```
 
 We use cross validation to obtain the lambda_star for lambda which yield beta_hats associated with the lowest MSE values. However in an effort to preserve model simplicity we will want to use the beta_hats associated with MSE values which are at most one standard error away from the minimum MSE as higher values of lamba penalize model "complexity". In other words, as we move from left to right on the x-axis, the lambda values go up and model "complexity" decreases. When looking at the plot, the red dashed line refers to the minimum MSE, the point at which our model is optimized. The blue line refers to the point at which the model outputs a "score" which is one standard error away from the minimum MSE. As supported by the plot illustrating the optimal lambda values there are about 4 variables which make a significant contribution to the model. The variables are as follows in order of most informative to least informative:
 
-*combined_shot_type Dunk*, *combined_shot_type Jump Shot*, *shot_distance* , and *combined_shot_type Tip Shot*
+*combined_shot_type Dunk*, *combined_shot_type Jump Shot*, and *shot_distance* 
 
 Thus suggesting a model that might look like the following:
 
