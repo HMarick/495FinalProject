@@ -1,0 +1,55 @@
+FinalPresentation
+========================================================
+author: 
+date: 
+autosize: true
+
+Intro
+========================================================
+
+For more details on authoring R presentations please visit <https://support.rstudio.com/hc/en-us/articles/200486468>.
+
+- Bullet 1
+- Bullet 2
+- Bullet 3
+
+Exploratory Analysis 
+========================================================
+
+- Contributes towards variable selection
+
+
+Heat Map
+========================================================
+
+```{r, echo=FALSE}
+plot(cars)
+```
+
+
+Accuracy by Type of Shot
+========================================================
+
+```{r, echo=FALSE}
+plot(cars)
+```
+
+
+
+Accuracy by Season
+========================================================
+
+```{r, echo=FALSE}
+plot(cars)
+```
+
+
+Period Effect?
+========================================================
+
+```{r, echo=FALSE}
+plot(cars)
+```
+
+
+
