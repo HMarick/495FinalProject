@@ -119,10 +119,12 @@ The code below examines trends in efficiency both by the season in which Bryant 
 by_season<-train2 %>%
   group_by(season) %>%
   summarise(fg_pct=mean(shot_made_flag), count=n()) %>%
-  mutate(season=strtrim(season,4))
+  mutate(season2=substring(season, 6,7)) %>%
+  mutate(championship=ifelse(season2 %in% c("00", "01", "02", "09", "10"), "Ring", "Other"))
 
-ggplot(by_season, aes(season, fg_pct)) + geom_col() + ggtitle("Accuracy by Season") +
-  xlab("Season") + ylab("FG %")
+by_season$season2=factor(by_season$season2, levels = by_season$season2[order(by_season$season)])
+  
+ggplot(by_season, aes(season2, fg_pct, fill=as.factor(championship))) + geom_col() + ggtitle("Accuracy by Season")+ xlab("Season") + ylab("FG %") +scale_fill_manual("championship", values = c("Ring" = "yellow", "Other" = "black"))
 
 playoffs<-train2 %>%
   group_by(playoffs) %>%
