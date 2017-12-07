@@ -418,5 +418,24 @@ Ultimately, our CART model yielded a Kaggle score of 0.65462.
 
 #Analysis
 
-The K-NN model performed 
+In the table below, notice how the difference in performance between CART and Logistic Regression is negligible. K-NN, however, performed significantly worse than the other two models. 
+
+```{r}
+scores<-c(0.65462, 0.65159, 0.74653)
+models<-c("CART", "Logistic", "K-NN")
+frame<-data.frame(models, scores)
+knitr::kable(frame)
+```
+
+
+We suspect the primary reason for the difference in performance is that both CART and Logistic regression had the luxury of utilizing the categorical shot type variable. Remember the following chart from our exploratory analysis section:
+
+```{r}
+ggplot(temp, aes(x = reorder(shot, `1`), y = 1)) +
+geom_point(aes(y = `1`), size = 3, color = " dark blue", stat = "identity") +
+    coord_flip() +
+    labs(y = "Accuracy", x = "", title = "Accuracy by Shot Type")
+```
+
+There is a very clear shot type effect here. While shot distance and location can serve as a proxy for shot type, they do not provide level of detail that shot type does. For instance, a hook shot can occur right next to the basket, as can a dunk. A hook shot, however, is much more difficult than a dunk, but this is not accounted for by the location and shot distance. Instead of attempting to create a distance metric for shot type, we elected to reduce the degree of subjectivity in our model by removing the shot type variable. In order to create a distance metric, perhaps we could have made the variable ordinal, in that we ordered them by their difficulty. Doing so would introduce other issues, like the fact the differences in difficulty between successive shot types are not uniform, which is implied by ordinal variables. In the tree for CART all decisions were made solely with shot type. Similarly, the most important variables in the logistic model were the shot type indicator variables. It is clear the the exclusion of shot type in the K-NN model is why it did not perform as well. 
 

@@ -24,26 +24,20 @@ Exploratory Analysis
 Accuracy by Type of Shot
 ========================================================
 
-```{r, echo=FALSE}
-plot(cars)
-```
+![plot of chunk unnamed-chunk-1](FinalPresentation-figure/unnamed-chunk-1-1.png)
 
 
 
 Accuracy by Season
 ========================================================
 
-```{r, echo=FALSE}
-plot(cars)
-```
+![plot of chunk unnamed-chunk-2](FinalPresentation-figure/unnamed-chunk-2-1.png)
 
 
 Period Effect?
 ========================================================
 
-```{r, echo=FALSE}
-plot(cars)
-```
+![plot of chunk unnamed-chunk-3](FinalPresentation-figure/unnamed-chunk-3-1.png)
 
 
 K-NN
