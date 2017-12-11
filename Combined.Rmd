@@ -339,7 +339,7 @@ abline(v=log(lambda_star), col="red")
 abline(v=log(lambda_star_1SE), col="blue")
 ```
 
-We use cross validation to obtain the optimal $\lambda$ which yielded $\hat{\beta}'s$ associated with the lowest MSE values. However in an effort to preserve model simplicity we will want to use the $\hat{\beta}'s$ associated with MSE values which are at most one standard error away from the minimum MSE as higher values of $\lambda$ penalize model "complexity". In other words, as we move from left to right on the x-axis in the plot above, the lambda values go up and model "complexity" decreases. When looking at the plot, the red dashed line refers to the minimum MSE, the point at which our model is optimized. The blue line refers to the point at which the model outputs a "score" which is one standard error away from the minimum MSE.
+We use cross validation to obtain the optimal $\lambda$ which yielded $\hat{\beta}'s$ associated with the lowest binomial deviance values. The `glmnet` packages uses binomial deviance as a measure of fit, instead of MSE, with logistic models. However in an effort to preserve model simplicity we will want to use the $\hat{\beta}'s$ associated with binomial deviance values which are at most one standard error away from the minimum as higher values of $\lambda$ penalize model "complexity". In other words, as we move from left to right on the x-axis in the plot above, the lambda values go up and model "complexity" decreases. When looking at the plot, the red dashed line refers to the minimum binomial deviance, the point at which our model is optimized. The blue line refers to the point at which the model outputs a "score" which is one standard error away from the minimum deviance.
 
 
 ```{r}
